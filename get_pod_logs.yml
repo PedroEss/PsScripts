@@ -3,7 +3,7 @@ name: Pods logs (Run only manually)
 # Triggers the workflow on push or pull request events but only for the main branch
 on:
   push:
-    branches: [SPP-6091_Get_pods_logs_script_yml]
+    branches: <branch_name>
   workflow_dispatch:
     inputs:
       message:
