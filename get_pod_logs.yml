@@ -1,0 +1,73 @@
+name: Pods logs (Run only manually)
+
+# Triggers the workflow on push or pull request events but only for the main branch
+on:
+  push:
+    branches: [SPP-6091_Get_pods_logs_script_yml]
+  workflow_dispatch:
+    inputs:
+      message:
+        description: "Workflow triggered manually"
+
+permissions:
+  contents: read
+  packages: write
+  issues: write
+  pull-requests: write
+  security-events: write
+  actions: read
+  checks: write
+
+env:
+  POD_NAME: 'pod_name'
+  RG_NAME: 'rg_name'
+  APP_NAME: 'app_name'
+
+jobs:
+  get_pods_logs:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: pwsh
+    
+    environment: Development
+    steps:
+
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set AKS context
+        uses: azure/aks-set-context@v1
+        with:
+          creds: ${{ secrets.DEV_AZURE_CREDENTIALS }}
+          cluster-name: ${{ env.POD_NAME }}
+          resource-group: ${{ env.RG_NAME }}
+      
+      - name: Get pods logs       
+        run: |
+          az aks install-cli
+
+          az aks get-credentials --resource-group ${{ env.RG_NAME }} --name ${{ env.POD_NAME }} --admin
+
+          $context = kubectl config set-context --current --namespace=${{ env.APP_NAME }}
+          Write-Host "[INFO] $($context)..."
+
+          Write-Host "[INFO] Getting pods list..."
+          $pods = kubectl get pods -n ${{ env.APP_NAME }} -o name
+          $podsLogsResult = @()
+          foreach ($pod in $pods)
+          {
+              $podReplaced = $pod.Replace('pod/', '')
+              Write-Warning "[INFO] Getting logs for $podReplaced ..."
+              $podLogs = kubectl logs $podReplaced
+              $podLogs
+              $podsLogsResult += $podLogs
+              Write-Warning "[INFO] Finished getting logs for $podReplaced."
+          }
+          $podsLogsResult | Out-File -FilePath pods_logs.log -Append
+      - name: 'Upload Artifact'
+        uses: actions/upload-artifact@v3
+        with:
+          path: pods_logs.log
+          retention-days: 5
+        
